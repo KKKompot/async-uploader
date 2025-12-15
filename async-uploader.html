@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="your-csrf-token-here">
+    <title>Async File Uploader</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #FF6B35;
+            --primary-dark: #E55A2B;
+            --secondary: #004E89;
+            --background: #0A0E27;
+            --surface: #1A1F3A;
+            --surface-light: #252B4A;
+            --text: #E8EDF2;
+            --text-dim: #9BA3B4;
+            --success: #06D6A0;
+            --error: #EF476F;
+            --border: #2D3454;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+            background: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%;
+            right: -50%;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 107, 53, 0.1) 0%, transparent 70%);
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            font-family: 'Syne', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+            animation: slideDown 0.6s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+            margin-bottom: 3rem;
+            animation: slideDown 0.6s ease-out 0.1s backwards;
+        }
+
+        .dropzone {
+            background: var(--surface);
+            border: 2px dashed var(--border);
+            border-radius: 1rem;
+            padding: 4rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            animation: slideDown 0.6s ease-out 0.2s backwards;
+        }
+
+        .dropzone::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 107, 53, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .dropzone:hover::before {
+            left: 100%;
+        }
+
+        .dropzone:hover {
+            border-color: var(--primary);
+            background: var(--surface-light);
+            transform: translateY(-2px);
+        }
+
+        .dropzone.dragover {
+            border-color: var(--primary);
+            background: var(--surface-light);
+            transform: scale(1.02);
+        }
+
+        .dropzone-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.6;
+        }
+
+        .dropzone-text {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        .dropzone-subtext {
+            color: var(--text-dim);
+            font-size: 0.875rem;
+        }
+
+        .dropzone-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            justify-content: center;
+        }
+
+        .dropzone-btn {
+            padding: 0.75rem 2rem;
+            background: var(--surface-light);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .dropzone-btn:hover {
+            background: var(--primary);
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .file-list {
+            margin-top: 2rem;
+            display: none;
+            animation: slideDown 0.4s ease-out;
+        }
+
+        .file-list.active {
+            display: block;
+        }
+
+        .file-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            animation: slideIn 0.3s ease-out backwards;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .file-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.75rem;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex: 1;
+        }
+
+        .file-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--surface-light);
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .file-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.25rem;
+            max-width: 400px;
+        }
+
+        .file-size {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+
+        .file-status {
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .file-status.pending {
+            background: rgba(155, 163, 180, 0.2);
+            color: var(--text-dim);
+        }
+
+        .file-status.uploading {
+            background: rgba(255, 107, 53, 0.2);
+            color: var(--primary);
+        }
+
+        .file-status.complete {
+            background: rgba(6, 214, 160, 0.2);
+            color: var(--success);
+        }
+
+        .file-status.error {
+            background: rgba(239, 71, 111, 0.2);
+            color: var(--error);
+        }
+
+        .file-status.retrying {
+            background: rgba(255, 193, 7, 0.2);
+            color: #FFC107;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .retry-btn {
+            padding: 0.5rem 1rem;
+            background: var(--primary);
+            border: none;
+            border-radius: 0.5rem;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .retry-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .retry-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .error-message {
+            color: var(--error);
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--surface-light);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 0.75rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 3px;
+        }
+
+        .progress-text {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.5rem;
+            text-align: right;
+        }
+
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: var(--surface);
+            border-radius: 0.75rem;
+            border: 1px solid var(--border);
+            animation: slideDown 0.4s ease-out 0.3s backwards;
+        }
+
+        .stat {
+            flex: 1;
+        }
+
+        .stat-label {
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-family: 'Syne', sans-serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .stat-value.success {
+            color: var(--success);
+        }
+
+        .stat-value.error {
+            color: var(--error);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        @media (max-width: 640px) {
+            h1 {
+                font-size: 2.5rem;
+            }
+
+            .dropzone {
+                padding: 3rem 1.5rem;
+            }
+
+            .stats {
+                flex-direction: column;
+                gap: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload Files</h1>
+        <p class="subtitle">Async staggered uploader · One file at a time</p>
+
+        <div id="dropzone" class="dropzone">
+            <div class="dropzone-icon">📦</div>
+            <div class="dropzone-text">Drop files/folders here or click to browse</div>
+            <div class="dropzone-subtext">Files will be uploaded one by one</div>
+            <div class="dropzone-actions">
+                <button class="dropzone-btn" id="selectFilesBtn">Select Files</button>
+                <button class="dropzone-btn" id="selectFolderBtn">Select Folder</button>
+            </div>
+        </div>
+
+        <input type="file" id="fileInput" multiple>
+        <input type="file" id="folderInput" webkitdirectory directory multiple style="display: none;">
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-label">Total Files</div>
+                <div class="stat-value" id="totalFiles">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Completed</div>
+                <div class="stat-value success" id="completedFiles">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Failed</div>
+                <div class="stat-value error" id="failedFiles">0</div>
+            </div>
+            <div class="stat" id="retryAllContainer" style="display: none;">
+                <button id="retryAllBtn" class="dropzone-btn" style="margin: 0; padding: 0.5rem 1.5rem; font-size: 0.75rem;">
+                    🔄 Retry All Failed
+                </button>
+            </div>
+        </div>
+
+        <div id="fileList" class="file-list"></div>
+    </div>
+
+    <script>
+        class AsyncFileUploader {
+            constructor() {
+                this.dropzone = document.getElementById('dropzone');
+                this.fileInput = document.getElementById('fileInput');
+                this.folderInput = document.getElementById('folderInput');
+                this.selectFilesBtn = document.getElementById('selectFilesBtn');
+                this.selectFolderBtn = document.getElementById('selectFolderBtn');
+                this.fileList = document.getElementById('fileList');
+                this.retryAllBtn = document.getElementById('retryAllBtn');
+                this.retryAllContainer = document.getElementById('retryAllContainer');
+                this.files = [];
+                this.currentIndex = 0;
+                this.fileIdCounter = 0; // Add counter for unique IDs
+                this.isUploading = false; // Track upload state
+                this.stats = {
+                    total: 0,
+                    completed: 0,
+                    failed: 0
+                };
+                this.maxRetries = 3; // Maximum retry attempts per file
+
+                this.init();
+            }
+
+            init() {
+                // Button clicks
+                this.selectFilesBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.fileInput.click();
+                });
+
+                this.selectFolderBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.folderInput.click();
+                });
+
+                // Drag and drop events
+                this.dropzone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    this.dropzone.classList.add('dragover');
+                });
+
+                this.dropzone.addEventListener('dragleave', () => {
+                    this.dropzone.classList.remove('dragover');
+                });
+
+                this.dropzone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.dropzone.classList.remove('dragover');
+                    this.handleDrop(e);
+                });
+
+                // File input change
+                this.fileInput.addEventListener('change', () => {
+                    this.handleFiles(this.fileInput.files);
+                    this.fileInput.value = ''; // Reset input
+                });
+
+                // Folder input change
+                this.folderInput.addEventListener('change', () => {
+                    this.handleFiles(this.folderInput.files);
+                    this.folderInput.value = ''; // Reset input
+                });
+
+                // Retry all failed button
+                this.retryAllBtn.addEventListener('click', () => {
+                    this.retryAllFailed();
+                });
+            }
+
+            async handleDrop(e) {
+                const items = e.dataTransfer.items;
+                const files = [];
+
+                // Process dropped items (could be files or folders)
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i].webkitGetAsEntry();
+                    if (item) {
+                        await this.traverseFileTree(item, '', files);
+                    }
+                }
+
+                if (files.length > 0) {
+                    this.handleFiles(files);
+                }
+            }
+
+            async traverseFileTree(item, path, files) {
+                if (item.isFile) {
+                    // Get the file
+                    const file = await new Promise((resolve) => {
+                        item.file(resolve);
+                    });
+                    
+                    // Add directory path to the file object
+                    file.relativePath = path + file.name;
+                    file.directoryPath = path;
+                    files.push(file);
+                    
+                } else if (item.isDirectory) {
+                    const dirReader = item.createReader();
+                    const entries = await new Promise((resolve) => {
+                        dirReader.readEntries(resolve);
+                    });
+                    
+                    // Recursively process directory contents
+                    for (let entry of entries) {
+                        await this.traverseFileTree(entry, path + item.name + '/', files);
+                    }
+                }
+            }
+
+            handleFiles(fileList) {
+                const newFiles = Array.from(fileList).map((file, index) => {
+                    // Extract directory path from webkitRelativePath or use custom property
+                    let directoryPath = '';
+                    let relativePath = file.name;
+                    
+                    if (file.webkitRelativePath) {
+                        // From folder input
+                        relativePath = file.webkitRelativePath;
+                        const pathParts = relativePath.split('/');
+                        pathParts.pop(); // Remove filename
+                        directoryPath = pathParts.join('/');
+                    } else if (file.directoryPath) {
+                        // From drag & drop
+                        directoryPath = file.directoryPath;
+                        relativePath = file.relativePath;
+                    }
+
+                    return {
+                        id: ++this.fileIdCounter, // Use counter for truly unique IDs
+                        file: file,
+                        status: 'pending',
+                        progress: 0,
+                        error: null,
+                        retryCount: 0, // Track retry attempts
+                        maxRetries: 3, // Maximum retry attempts
+                        directoryPath: directoryPath,
+                        relativePath: relativePath
+                    };
+                });
+
+                this.files.push(...newFiles);
+                this.stats.total += newFiles.length;
+                this.updateStats();
+
+                // Show file list
+                this.fileList.classList.add('active');
+
+                // Render new files
+                newFiles.forEach((fileData, index) => {
+                    setTimeout(() => {
+                        this.renderFile(fileData);
+                    }, index * 50);
+                });
+
+                // Start uploading if not already uploading
+                if (!this.isUploading) {
+                    this.uploadNext();
+                }
+            }
+
+            renderFile(fileData) {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.id = `file-${fileData.id}`;
+                fileItem.style.animationDelay = '0s';
+
+                const icon = this.getFileIcon(fileData.file);
+                const size = this.formatFileSize(fileData.file.size);
+                const displayPath = fileData.directoryPath ? `📁 ${fileData.directoryPath}` : '📁 Root';
+
+                fileItem.innerHTML = `
+                    <div class="file-header">
+                        <div class="file-info">
+                            <div class="file-icon">${icon}</div>
+                            <div class="file-details">
+                                <div class="file-name" title="${fileData.file.name}">${fileData.file.name}</div>
+                                <div class="file-size">${displayPath} • ${size}</div>
+                            </div>
+                        </div>
+                        <div class="file-status pending">Pending</div>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">0%</div>
+                    <div class="file-actions" style="display: none;">
+                        <button class="retry-btn" data-file-id="${fileData.id}">🔄 Retry Upload</button>
+                    </div>
+                `;
+
+                this.fileList.appendChild(fileItem);
+                
+                // Add retry button event listener
+                const retryBtn = fileItem.querySelector('.retry-btn');
+                if (retryBtn) {
+                    retryBtn.addEventListener('click', () => this.manualRetry(fileData.id));
+                }
+            }
+
+            async uploadNext() {
+                // Find next pending file
+                const nextFile = this.files.find(f => f.status === 'pending');
+                
+                if (!nextFile) {
+                    this.isUploading = false;
+                    console.log('All uploads complete!');
+                    return;
+                }
+
+                this.isUploading = true;
+                await this.uploadFile(nextFile);
+                
+                // Upload next file
+                this.uploadNext();
+            }
+
+            async uploadFile(fileData) {
+                const fileElement = document.getElementById(`file-${fileData.id}`);
+                
+                // Safety check - if element doesn't exist yet, wait a bit
+                if (!fileElement) {
+                    console.warn(`File element not found for ID ${fileData.id}, waiting...`);
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    return this.uploadFile(fileData); // Retry
+                }
+                
+                const statusElement = fileElement.querySelector('.file-status');
+                const progressFill = fileElement.querySelector('.progress-fill');
+                const progressText = fileElement.querySelector('.progress-text');
+                const actionsContainer = fileElement.querySelector('.file-actions');
+
+                // Update status to uploading
+                fileData.status = 'uploading';
+                statusElement.className = 'file-status uploading';
+                statusElement.textContent = 'Uploading';
+                actionsContainer.style.display = 'none'; // Hide retry button during upload
+
+                const formData = new FormData();
+                formData.append('file', fileData.file);
+                
+                // Determine file type for predetermined storage location
+                const fileType = this.determineFileType(fileData.file);
+                formData.append('file_type', fileType);
+                
+                // Send directory path information
+                formData.append('directory_path', fileData.directoryPath);
+                formData.append('relative_path', fileData.relativePath);
+
+                try {
+                    // Use XMLHttpRequest for progress tracking
+                    const result = await this.uploadWithProgress(formData, (progress) => {
+                        fileData.progress = progress;
+                        progressFill.style.width = `${progress}%`;
+                        progressText.textContent = `${progress}%`;
+                    });
+
+                    // Success
+                    fileData.status = 'complete';
+                    fileData.retryCount = 0; // Reset retry count on success
+                    statusElement.className = 'file-status complete';
+                    statusElement.textContent = 'Complete';
+                    progressFill.style.width = '100%';
+                    progressText.textContent = '100%';
+                    actionsContainer.style.display = 'none';
+                    
+                    this.stats.completed++;
+                    this.updateStats();
+
+                    console.log('Upload successful:', result);
+
+                } catch (error) {
+                    // Error - handle retry logic
+                    fileData.retryCount++;
+                    fileData.error = error.message;
+                    
+                    if (fileData.retryCount < fileData.maxRetries) {
+                        // Auto-retry
+                        fileData.status = 'retrying';
+                        statusElement.className = 'file-status retrying';
+                        statusElement.textContent = `Retrying (${fileData.retryCount}/${fileData.maxRetries})`;
+                        progressText.textContent = `Retry ${fileData.retryCount}...`;
+                        
+                        console.log(`Retrying upload (${fileData.retryCount}/${fileData.maxRetries}):`, fileData.file.name);
+                        
+                        // Wait before retrying (exponential backoff)
+                        await new Promise(resolve => setTimeout(resolve, 1000 * fileData.retryCount));
+                        
+                        // Reset status and retry
+                        fileData.status = 'pending';
+                        fileData.progress = 0;
+                        progressFill.style.width = '0%';
+                        
+                        // Don't increment failed count yet, just retry
+                        return this.uploadFile(fileData);
+                        
+                    } else {
+                        // Max retries reached - mark as failed
+                        fileData.status = 'error';
+                        statusElement.className = 'file-status error';
+                        statusElement.textContent = 'Failed';
+                        progressText.innerHTML = `<span class="error-message">${error.message}</span>`;
+                        
+                        // Show manual retry button
+                        actionsContainer.style.display = 'flex';
+                        actionsContainer.innerHTML = `
+                            <button class="retry-btn" data-file-id="${fileData.id}">
+                                🔄 Retry Upload
+                            </button>
+                        `;
+                        
+                        // Add click handler for retry button
+                        const retryBtn = actionsContainer.querySelector('.retry-btn');
+                        retryBtn.addEventListener('click', () => this.manualRetry(fileData.id));
+                        
+                        this.stats.failed++;
+                        this.updateStats();
+
+                        console.error('Upload failed after retries:', error);
+                    }
+                }
+            }
+
+            manualRetry(fileId) {
+                const fileData = this.files.find(f => f.id === fileId);
+                if (!fileData) return;
+
+                // Reset file data for manual retry
+                fileData.status = 'pending';
+                fileData.progress = 0;
+                fileData.retryCount = 0;
+                fileData.error = null;
+
+                // Update stats
+                this.stats.failed--;
+                this.updateStats();
+
+                // Reset UI
+                const fileElement = document.getElementById(`file-${fileId}`);
+                const statusElement = fileElement.querySelector('.file-status');
+                const progressFill = fileElement.querySelector('.progress-fill');
+                const progressText = fileElement.querySelector('.progress-text');
+                const actionsContainer = fileElement.querySelector('.file-actions');
+
+                statusElement.className = 'file-status pending';
+                statusElement.textContent = 'Pending';
+                progressFill.style.width = '0%';
+                progressText.textContent = '0%';
+                actionsContainer.style.display = 'none';
+
+                // Trigger upload if not already running
+                if (!this.isUploading) {
+                    this.uploadNext();
+                }
+            }
+
+            uploadWithProgress(formData, onProgress) {
+                return new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+
+                    // Progress event
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            const percentComplete = Math.round((e.loaded / e.total) * 100);
+                            onProgress(percentComplete);
+                        }
+                    });
+
+                    // Load event (success)
+                    xhr.addEventListener('load', () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            try {
+                                const response = JSON.parse(xhr.responseText);
+                                resolve(response);
+                            } catch (e) {
+                                resolve(xhr.responseText);
+                            }
+                        } else {
+                            reject(new Error(`Upload failed: ${xhr.status}`));
+                        }
+                    });
+
+                    // Error event
+                    xhr.addEventListener('error', () => {
+                        reject(new Error('Network error'));
+                    });
+
+                    // Abort event
+                    xhr.addEventListener('abort', () => {
+                        reject(new Error('Upload cancelled'));
+                    });
+
+                    // Open and send
+                    xhr.open('POST', '/upload'); // Change this to your Laravel route
+                    
+                    // Add CSRF token
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    if (csrfToken) {
+                        xhr.setRequestHeader('X-CSRF-TOKEN', csrfToken);
+                    }
+
+                    xhr.send(formData);
+                });
+            }
+
+            determineFileType(file) {
+                const type = file.type;
+                
+                if (type.startsWith('image/')) return 'images';
+                if (type.startsWith('video/')) return 'videos';
+                if (type.startsWith('audio/')) return 'audio';
+                if (type.includes('pdf')) return 'documents';
+                if (type.includes('word') || type.includes('document')) return 'documents';
+                if (type.includes('sheet') || type.includes('excel')) return 'spreadsheets';
+                if (type.includes('presentation') || type.includes('powerpoint')) return 'presentations';
+                if (type.startsWith('text/')) return 'text';
+                
+                return 'misc';
+            }
+
+            getFileIcon(file) {
+                const type = file.type;
+                
+                if (type.startsWith('image/')) return '🖼️';
+                if (type.startsWith('video/')) return '🎬';
+                if (type.startsWith('audio/')) return '🎵';
+                if (type.includes('pdf')) return '📄';
+                if (type.includes('word') || type.includes('document')) return '📝';
+                if (type.includes('sheet') || type.includes('excel')) return '📊';
+                if (type.includes('presentation') || type.includes('powerpoint')) return '📽️';
+                if (type.includes('zip') || type.includes('rar') || type.includes('compressed')) return '🗜️';
+                if (type.startsWith('text/')) return '📋';
+                
+                return '📦';
+            }
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                
+                return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+            }
+
+            updateStats() {
+                document.getElementById('totalFiles').textContent = this.stats.total;
+                document.getElementById('completedFiles').textContent = this.stats.completed;
+                document.getElementById('failedFiles').textContent = this.stats.failed;
+            }
+        }
+
+        // Initialize uploader
+        const uploader = new AsyncFileUploader();
+    </script>
+</body>
+</html>
