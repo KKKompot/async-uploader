@@ -1,4 +1,4 @@
-I had a personal problem where I had one of my projects running on two different servers and I needed to move files from one to another. the second server was using custom S3 infrastructure and I needed to move ~19000 files from one server to another. I couldn't connect with WinSCP and I didn't feel like using a CLI so I made this staggered asynchronous file uploader with Claude. it's made for Laravel but with some changes you could make it work with PHP as well. I decided to share it in case someone could use it.
+I had a personal problem where I had one of my projects running on two different servers and I needed to move files from one to another. the second server was using custom S3 infrastructure and I needed to move ~19000 files from one server to another. I couldn't connect with WinSCP and I didn't feel like using a CLI so I made this staggered asynchronous file uploader with Claude. it's made for Laravel but with some tweaks you could make it work with regular PHP as well. I decided to share this in case someone could use it.
 
 # 📦 Async File Uploader for Laravel
 
